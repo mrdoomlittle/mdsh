@@ -1,0 +1,6 @@
+[submodule "bci"]
+	path = bci
+	url = git@github.com:mrdoomlittle/bci.git
+[submodule "str_cmb"]
+	path = str_cmb
+	url = git@github.com:mrdoomlittle/str_cmb.git
