@@ -1,0 +1,6 @@
+u8_t i = 5;
+while(i != 0) {
+	_print(i);
+	i--;
+}
+_exit 0x0;

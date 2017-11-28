@@ -17,6 +17,7 @@ void mdsh_de_init(struct mdsh *__mdsh) {
 
 mdl_u8_t *rd(mdl_uint_t *__bc, mdl_u8_t *__buf, mdl_uint_t __bs) {
 	*__bc = read(fileno(stdin), __buf, __bs);
+	*(__buf+(*__bc)-1) = '\0';
 	return __buf;
 }
 
@@ -24,7 +25,7 @@ mdl_u8_t *rd(mdl_uint_t *__bc, mdl_u8_t *__buf, mdl_uint_t __bs) {
 char *extpart(char *__buf, char *__tmp, mdl_uint_t *__l, mdl_uint_t __bs) {
 	while(*__buf == ' ') __buf++;
 	char *buf_itr = __buf, *tmp_itr = __tmp;
-	while(*buf_itr != ' ' && buf_itr != __buf+__bs-1 && *buf_itr != '\n')
+	while(*buf_itr != ' ' && buf_itr < __buf+__bs && *buf_itr != '\0')
 		*(tmp_itr++) = *(buf_itr++);
 	*__l = buf_itr-__buf;
 	*tmp_itr = '\0';
@@ -67,16 +68,40 @@ void change_dir(char *__cur_dir, char *__to) {
 		*end = '\0';
 	}
 }
+
 # include <sys/wait.h>
 # include <dirent.h>
 # include <sys/stat.h>
 # include <linux/limits.h>
 # include <mdl/str_cmb.h>
-void mdsh_run(struct mdsh *__mdsh, mdl_uint_t __bufsize) {
+# include <fcntl.h>
+# include <termios.h>
+# include <linux/kd.h>
+# include <sys/ioctl.h>
+void static bci_exec(char *__file) {
+	char *argv[] = {"bci", "-exec", __file, NULL};
+	pid_t pid;
+	if ((pid = fork()) == 0) {
+		if (execvp("../bci/bin/bci", argv) < 0) {
+			fprintf(stderr, "failed to exec.\n");
+		}
+		_exit(0);
+	}
+	waitpid(pid, NULL, 0);
+}
+
+char static const *help = "\
+commands\n\
+   cd [dir]\n\
+   curd - current path\n\
+   ls\n\
+   ./ - execute .rbc file\n\
+";
+
+void mdsh_run(struct mdsh *__mdsh, char const *__root, mdl_uint_t __bufsize) {
 	__mdsh->ibuf = (char*)malloc(__bufsize);
 	char tmp[200];
 	memset(__mdsh->ibuf, 0xFF, __bufsize);
-
 	__mdsh->cur_dir = (char*)malloc(PATH_MAX);
 	getcwd(__mdsh->cur_dir, PATH_MAX);
 	do {
@@ -86,16 +111,16 @@ void mdsh_run(struct mdsh *__mdsh, mdl_uint_t __bufsize) {
 
 		rd(&cc, (mdl_u8_t*)__mdsh->ibuf, __bufsize);
 		char *base = extpart(__mdsh->ibuf, tmp, &partl, cc);
+		if (!partl) goto _end;
 		off+= partl;
-//		printf("base{'%s'} %u\n", base, partl);
+
 		if (!strcmp(base, "help")) {
-			// do somthing
+			fprintf(stdout, "%s", help);
 		} else if (!strcmp(base, "exit"))
 			__mdsh->flags ^= FLG_RUNNING;
 		else if (!strcmp(base, "cd")) {
 			char *to = extpart(__mdsh->ibuf+off, tmp, &partl, cc);
 			off+= partl;
-//			printf("to: '%s'\n", to);
 			change_dir(__mdsh->cur_dir, to);
 			struct stat st;
 			if (stat(__mdsh->cur_dir, &st) == -1)
@@ -123,22 +148,24 @@ void mdsh_run(struct mdsh *__mdsh, mdl_uint_t __bufsize) {
 					fprintf(stdout, "\n");
 			} else
 				fprintf(stderr, "failed to list directory.\n");
-		}
-
-		if (is_len(base, 2) == -1) {
-			if (*(mdl_u16_t*)base == (((mdl_u16_t)'/')<<8 | (mdl_u16_t)'.')) {
-				char *exec = mdl_str_cmb(__mdsh->cur_dir, mdl_str_cmb("/", base+2, 0x0), MDL_SC_FREE_RIGHT);
-				char *argv[] = {"bci", "-exec", exec, NULL};
-				pid_t pid = fork();
-				if (pid == 0) {
-    				if (execvp("../bci/bin/bci", argv) < 0) {
-						fprintf(stderr, "failed to exec.\n");
-					}
-					_exit(0);
+		} else {
+			if (is_len(base, 2) == -1) {
+				if (*(mdl_u16_t*)base == (((mdl_u16_t)'/')<<8 | (mdl_u16_t)'.')) {
+					char *file = mdl_str_cmb(__mdsh->cur_dir, mdl_str_cmb("/", base+2, 0x0), MDL_SC_FREE_RIGHT);
+					bci_exec(file);
+					free(file);
+					goto _end;
 				}
-				waitpid(pid, NULL, 0);
 			}
+
+			char *file = mdl_str_cmb(mdl_str_cmb((char*)__root, "/local/bin", 0x0), mdl_str_cmb("/", base, 0x0), MDL_SC_FREE_BOTH);
+			if(!access(file, F_OK)) {
+				bci_exec(file);
+			}
+
+			free(file);
 		}
+		_end:
 		free(base);
 	} while(is_flag(__mdsh->flags, FLG_RUNNING));
 }

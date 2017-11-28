@@ -9,5 +9,5 @@ struct mdsh {
 
 void mdsh_init(struct mdsh*);
 void mdsh_de_init(struct mdsh*);
-void mdsh_run(struct mdsh*, mdl_uint_t);
+void mdsh_run(struct mdsh*, char const*, mdl_uint_t);
 # endif
