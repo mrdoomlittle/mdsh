@@ -1,0 +1,24 @@
+# include <file_s.bc>
+# include <file.bc>
+# include <stdio.bc>
+u8_t name[10];
+u16_t len;
+_getarg(name, &len, 0);
+u8_t buf[30];
+
+struct file f;
+
+f.path = name;
+f.off = 0;
+f.buf = buf;
+f.bc = 6;
+
+read_file(&f);
+
+u8_t *itr = buf;
+while(itr != buf+f.bc) {
+	printf("%c\n", *itr);
+	itr++;
+}
+
+_exit 0x0;

@@ -78,16 +78,31 @@ void change_dir(char *__cur_dir, char *__to) {
 # include <termios.h>
 # include <linux/kd.h>
 # include <sys/ioctl.h>
-void static bci_exec(char *__file) {
-	char *argv[] = {"bci", "-exec", __file, NULL};
+void static bci_exec(char const *__root, char *__file, char *__args) {
+	char *ai = __args;
+	if (__args != NULL) {
+		while(*ai != '\0') {
+			if (*ai == ' ') *ai = ',';
+			ai++;
+		}
+	}
+
+	char *argv[] = {"bci", "-exec", __file, NULL, NULL, "-ss", "400", NULL};
+	if (__args != NULL) {
+		argv[3] = "-args";
+		argv[4] = __args;
+	}
+
 	pid_t pid;
+	char *bci = mdl_str_cmb((char*)__root, mdl_str_cmb("/", "bci/bin/bci", 0), MDL_SC_FREE_RIGHT);
 	if ((pid = fork()) == 0) {
-		if (execvp("../bci/bin/bci", argv) < 0) {
+		if (execvp(bci, argv) < 0) {
 			fprintf(stderr, "failed to exec.\n");
 		}
 		_exit(0);
 	}
 	waitpid(pid, NULL, 0);
+	free(bci);
 }
 
 char static const *help = "\
@@ -97,6 +112,15 @@ commands\n\
    ls\n\
    ./ - execute .rbc file\n\
 ";
+
+char *read_exec_args(char *__ibuf, mdl_uint_t __cc, mdl_uint_t __off) {
+	if (__off == __cc) return NULL;
+	if (*(__ibuf+__off) == ' ') __off++;
+	mdl_uint_t l = (__cc-__off)+1;
+	char *s = (char*)malloc(l);
+	memcpy(s, __ibuf+__off, l);
+	return s;
+}
 
 void mdsh_run(struct mdsh *__mdsh, char const *__root, mdl_uint_t __bufsize) {
 	__mdsh->ibuf = (char*)malloc(__bufsize);
@@ -136,7 +160,7 @@ void mdsh_run(struct mdsh *__mdsh, char const *__root, mdl_uint_t __bufsize) {
 			if ((d = opendir(__mdsh->cur_dir)) != NULL) {
 				mdl_u8_t no = 0;
 				while((e = readdir(d)) != NULL) {
-					if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..")) continue;
+					if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..") || *e->d_name == '.') continue;
 					if ((no>>2)-((no-1)>>2))
 						fprintf(stdout, "%s\n", e->d_name);
 					else
@@ -151,18 +175,23 @@ void mdsh_run(struct mdsh *__mdsh, char const *__root, mdl_uint_t __bufsize) {
 		} else {
 			if (is_len(base, 2) == -1) {
 				if (*(mdl_u16_t*)base == (((mdl_u16_t)'/')<<8 | (mdl_u16_t)'.')) {
+					char *args = read_exec_args(__mdsh->ibuf, cc, off);
 					char *file = mdl_str_cmb(__mdsh->cur_dir, mdl_str_cmb("/", base+2, 0x0), MDL_SC_FREE_RIGHT);
-					bci_exec(file);
+					bci_exec(__root, file, args);
 					free(file);
+					free(args);
 					goto _end;
 				}
 			}
 
 			char *file = mdl_str_cmb(mdl_str_cmb((char*)__root, "/local/bin", 0x0), mdl_str_cmb("/", base, 0x0), MDL_SC_FREE_BOTH);
 			if(!access(file, F_OK)) {
-				bci_exec(file);
+				char *args = read_exec_args(__mdsh->ibuf, cc, off);
+				bci_exec(__root, file, args);
+				free(args);
+			} else {
+				fprintf(stdout, "command doesen't exist.\n");
 			}
-
 			free(file);
 		}
 		_end:
