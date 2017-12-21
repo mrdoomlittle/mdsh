@@ -4,7 +4,7 @@
 # include <malloc.h>
 # define FLG_RUNNING 0x1
 mdl_u8_t static is_flag(mdl_u8_t __flags, mdl_u8_t __flag) {
-	return ((__flags&__flag) == __flag);
+	return (__flags&__flag) == __flag;
 }
 
 void mdsh_init(struct mdsh *__mdsh) {
@@ -87,14 +87,14 @@ void static bci_exec(char const *__root, char *__file, char *__args) {
 		}
 	}
 
-	char *argv[] = {"bci", "-exec", __file, NULL, NULL, "-ss", "400", NULL};
+	char *argv[] = {"bci", "-exec", __file, NULL, NULL, NULL};
 	if (__args != NULL) {
 		argv[3] = "-args";
 		argv[4] = __args;
 	}
 
 	pid_t pid;
-	char *bci = mdl_str_cmb((char*)__root, mdl_str_cmb("/", "bci/bin/bci", 0), MDL_SC_FREE_RIGHT);
+	char *bci = mdl_str_cmb((char*)__root, mdl_str_cmb("/", "bci/bin/bci", 0), _mdl_stc_free_rhs);
 	if ((pid = fork()) == 0) {
 		if (execvp(bci, argv) < 0) {
 			fprintf(stderr, "failed to exec.\n");
@@ -176,7 +176,7 @@ void mdsh_run(struct mdsh *__mdsh, char const *__root, mdl_uint_t __bufsize) {
 			if (is_len(base, 2) == -1) {
 				if (*(mdl_u16_t*)base == (((mdl_u16_t)'/')<<8 | (mdl_u16_t)'.')) {
 					char *args = read_exec_args(__mdsh->ibuf, cc, off);
-					char *file = mdl_str_cmb(__mdsh->cur_dir, mdl_str_cmb("/", base+2, 0x0), MDL_SC_FREE_RIGHT);
+					char *file = mdl_str_cmb(__mdsh->cur_dir, mdl_str_cmb("/", base+2, 0x0), _mdl_stc_free_rhs);
 					bci_exec(__root, file, args);
 					free(file);
 					free(args);
@@ -184,7 +184,7 @@ void mdsh_run(struct mdsh *__mdsh, char const *__root, mdl_uint_t __bufsize) {
 				}
 			}
 
-			char *file = mdl_str_cmb(mdl_str_cmb((char*)__root, "/local/bin", 0x0), mdl_str_cmb("/", base, 0x0), MDL_SC_FREE_BOTH);
+			char *file = mdl_str_cmb(mdl_str_cmb((char*)__root, "/local/bin", 0x0), mdl_str_cmb("/", base, 0x0), _mdl_stc_free_both);
 			if(!access(file, F_OK)) {
 				char *args = read_exec_args(__mdsh->ibuf, cc, off);
 				bci_exec(__root, file, args);

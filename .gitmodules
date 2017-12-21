@@ -4,3 +4,6 @@
 [submodule "str_cmb"]
 	path = str_cmb
 	url = git@github.com:mrdoomlittle/str_cmb.git
+[submodule "qcr"]
+	path = qcr
+	url = https://github.com/mrdoomlittle/qcr.git
